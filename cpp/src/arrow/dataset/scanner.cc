@@ -1000,7 +1000,10 @@ Result<acero::ExecNode*> MakeScanNode(acero::ExecPlan* plan,
   auto scan_options = scan_node_options.scan_options;
   auto dataset = scan_node_options.dataset;
   bool require_sequenced_output = scan_node_options.require_sequenced_output;
-
+  // auto ord = scan_node_options.ordering; // aborted dumped
+  auto order = compute::Ordering::Unordered();
+  if(require_sequenced_output)
+      order = compute::Ordering::Implicit();
   RETURN_NOT_OK(NormalizeScanOptions(scan_options, dataset->schema()));
 
   // using a generator for speculative forward compatibility with async fragment discovery
@@ -1032,10 +1035,10 @@ Result<acero::ExecNode*> MakeScanNode(acero::ExecPlan* plan,
   } else {
     batch_gen = std::move(merged_batch_gen);
   }
-
+  int64_t index=require_sequenced_output?0:compute::kUnsequencedIndex;
   auto gen = MakeMappedGenerator(
       std::move(batch_gen),
-      [scan_options](const EnumeratedRecordBatch& partial)
+      [scan_options, index](const EnumeratedRecordBatch& partial)mutable
           -> Result<std::optional<compute::ExecBatch>> {
         // TODO(ARROW-13263) fragments may be able to attach more guarantees to batches
         // than this, for example parquet's row group stats. Failing to do this leaves
@@ -1057,6 +1060,8 @@ Result<acero::ExecNode*> MakeScanNode(acero::ExecPlan* plan,
         batch->values.emplace_back(partial.record_batch.index);
         batch->values.emplace_back(partial.record_batch.last);
         batch->values.emplace_back(partial.fragment.value->ToString());
+        		if (index!=compute::kUnsequencedIndex)
+			          batch->index = index++;
         return batch;
       });
 
@@ -1066,10 +1071,10 @@ Result<acero::ExecNode*> MakeScanNode(acero::ExecPlan* plan,
       fields.push_back(aug_field);
     }
   }
-
   return acero::MakeExecNode(
       "source", plan, {},
-      acero::SourceNodeOptions{schema(std::move(fields)), std::move(gen)});
+      acero::SourceNodeOptions{schema(std::move(fields)), std::move(gen), order
+      });
 }
 
 Result<acero::ExecNode*> MakeAugmentedProjectNode(acero::ExecPlan* plan,
