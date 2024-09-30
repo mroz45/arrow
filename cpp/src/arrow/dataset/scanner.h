@@ -571,7 +571,6 @@ class ARROW_DS_EXPORT ScanNodeOptions : public acero::ExecNodeOptions {
   std::shared_ptr<Dataset> dataset;
   std::shared_ptr<ScanOptions> scan_options;
   bool require_sequenced_output;
-  arrow::compute::Ordering ordering =arrow::compute::Ordering::Unordered();
 };
 
 /// @}

@@ -1000,7 +1000,6 @@ Result<acero::ExecNode*> MakeScanNode(acero::ExecPlan* plan,
   auto scan_options = scan_node_options.scan_options;
   auto dataset = scan_node_options.dataset;
   bool require_sequenced_output = scan_node_options.require_sequenced_output;
-  // auto ord = scan_node_options.ordering; // aborted dumped
   auto order = compute::Ordering::Unordered();
   if(require_sequenced_output)
       order = compute::Ordering::Implicit();
@@ -1073,7 +1072,7 @@ Result<acero::ExecNode*> MakeScanNode(acero::ExecPlan* plan,
   }
   return acero::MakeExecNode(
       "source", plan, {},
-      acero::SourceNodeOptions{schema(std::move(fields)), std::move(gen), order
+      acero::SourceNodeOptions{schema(std::move(fields)), std::move(gen), std::move(order)
       });
 }
 

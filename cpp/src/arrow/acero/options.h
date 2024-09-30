@@ -93,11 +93,11 @@ class ARROW_ACERO_EXPORT SourceNodeOptions : public ExecNodeOptions {
  public:
   /// Create an instance from values
   SourceNodeOptions(std::shared_ptr<Schema> output_schema,
-                    std::function<Future<std::optional<ExecBatch>>()> generator
-                    ,compute::Ordering ordering = compute::Ordering::Unordered()
+                    std::function<Future<std::optional<ExecBatch>>()> generator,
+                    compute::Ordering ordering = compute::Ordering::Unordered()
                     )
-      : output_schema(std::move(output_schema)), generator(std::move(generator))
-       ,ordering_(std::move(ordering))
+      : output_schema(std::move(output_schema)), generator(std::move(generator)),
+        ordering_(std::move(ordering))
         {}
 
 
