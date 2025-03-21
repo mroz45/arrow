@@ -38,6 +38,7 @@
 #include "arrow/acero/query_context.h"
 #include "arrow/acero/test_nodes.h"
 #include "arrow/acero/test_util_internal.h"
+#include "arrow/acero/time_series_util.h"
 #include "arrow/acero/util.h"
 #include "arrow/api.h"
 #include "arrow/compute/api_scalar.h"
@@ -49,7 +50,6 @@
 #include "arrow/testing/random.h"
 #include "arrow/util/checked_cast.h"
 #include "arrow/util/thread_pool.h"
-#include "arrow/acero/time_series_util.h"
 
 #define TRACED_TEST(t_class, t_name, t_body)  \
   TEST(t_class, t_name) {                     \
@@ -1547,19 +1547,28 @@ void TestBackpressure(BatchesMaker maker, int batch_size, int num_l_batches,
 }
 
 TEST(AsofJoinTest, NegativeStartTime) {
-  auto l_schema = schema({field("time", int32()), field("key", int32()), field("l_value", int32())});
-  auto r_schema = schema({field("time", int32()), field("key", int32()), field("r_value", int32())});
+  auto l_schema =
+      schema({field("time", int32()), field("key", int32()), field("l_value", int32())});
+  auto r_schema =
+      schema({field("time", int32()), field("key", int32()), field("r_value", int32())});
 
+  ASSERT_OK_AND_ASSIGN(
+      auto l_batches,
+      MakeBatchesFromNumString(
+          l_schema, {R"([[-1, -10, 1], [2, 1, 2], [10, 14, 3], [15, 16, 3]])"}));
+  ASSERT_OK_AND_ASSIGN(
+      auto r_batches,
+      MakeBatchesFromNumString(
+          r_schema, {R"([[-5, 1, 10], [5, 1, 20], [15, 1, 30], [18, 1, 30]])"}));
 
-  ASSERT_OK_AND_ASSIGN(auto l_batches, MakeBatchesFromNumString(l_schema, {R"([[-1, -10, 1], [2, 1, 2], [10, 14, 3], [15, 16, 3]])"}));
-  ASSERT_OK_AND_ASSIGN(auto r_batches, MakeBatchesFromNumString(r_schema, {R"([[-5, 1, 10], [5, 1, 20], [15, 1, 30], [18, 1, 30]])"}));
-
-  Declaration l_src = {"source", SourceNodeOptions(l_schema, l_batches.gen(false, false))};
-  Declaration r_src = {"source", SourceNodeOptions(r_schema, r_batches.gen(false, false))};
+  Declaration l_src = {"source",
+                       SourceNodeOptions(l_schema, l_batches.gen(false, false))};
+  Declaration r_src = {"source",
+                       SourceNodeOptions(r_schema, r_batches.gen(false, false))};
 
   arrow::acero::AsofJoinNodeOptions::Keys left_keys, right_keys;
-  left_keys.on_key = arrow::FieldRef("time"); 
-  right_keys.on_key = arrow::FieldRef("time");  
+  left_keys.on_key = arrow::FieldRef("time");
+  right_keys.on_key = arrow::FieldRef("time");
 
   AsofJoinNodeOptions asof_join_opts({left_keys, right_keys}, 1);
 
@@ -1573,31 +1582,31 @@ template <typename T>
 void TestNormalizeTime() {
   constexpr T lowest = std::numeric_limits<T>::lowest();
   constexpr T max = std::numeric_limits<T>::max();
-  
+
   std::vector<T> test_values;
-  if constexpr(std::is_signed<T>::value) {
+  if constexpr (std::is_signed<T>::value) {
     test_values = {lowest, lowest + 1, -2, -1, 0, 1, 2, max - 1, max};
-  }else{
+  } else {
     test_values = {0, 1, 2, max - 1, max};
   }
-  
+
   std::vector<int64_t> normalized_values;
   for (T value : test_values) {
     normalized_values.push_back(NormalizeTime<T>(value));
   }
 
-  for(size_t i = 0; i < test_values.size(); i++){
-    for(size_t j = i+1; j < test_values.size(); j++){
+  for (size_t i = 0; i < test_values.size(); i++) {
+    for (size_t j = i + 1; j < test_values.size(); j++) {
       ASSERT_LT(normalized_values[i], normalized_values[j]);
     }
   }
 }
 
-#define TEST_NORMALIZE_TIME(TYPE) \
-  TEST(NormalizeTimeTest, TYPE) {                            \
-      using T = typename TypeIdTraits<Type::TYPE>::Type; \
-      using CType = typename TypeTraits<T>::CType; \
-      TestNormalizeTime<CType>(); \
+#define TEST_NORMALIZE_TIME(TYPE)                      \
+  TEST(NormalizeTimeTest, TYPE) {                      \
+    using T = typename TypeIdTraits<Type::TYPE>::Type; \
+    using CType = typename TypeTraits<T>::CType;       \
+    TestNormalizeTime<CType>();                        \
   }
 
 TEST_NORMALIZE_TIME(INT8)

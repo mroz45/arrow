@@ -96,8 +96,7 @@ struct TolType {
   constexpr static OnType kMinValue = std::numeric_limits<OnType>::lowest();
   constexpr static OnType kMaxValue = std::numeric_limits<OnType>::max();
 
-  explicit TolType(int64_t tol)
-      : value(tol > 0 ? tol : -tol), positive(tol > 0) {}
+  explicit TolType(int64_t tol) : value(tol > 0 ? tol : -tol), positive(tol > 0) {}
 
   OnType value;
   bool positive;
