@@ -22,14 +22,16 @@
 
 namespace arrow::acero {
 
-template <typename T, enable_if_t<std::is_integral<T>::value, bool>>
-inline uint64_t NormalizeTime(T t) {
-  uint64_t bias =
-      std::is_signed<T>::value ? static_cast<uint64_t>(1) << (8 * sizeof(T) - 1) : 0;
-  return t < 0 ? static_cast<uint64_t>(t + bias) : static_cast<uint64_t>(t);
-}
+  template <typename T, enable_if_t<std::is_integral<T>::value, bool>>
+  inline int64_t NormalizeTime(T t) {
+    if constexpr(std::is_same_v<T, uint64_t>){
+      return static_cast<int64_t>(t) ^ std::numeric_limits<int64_t>::lowest();
+    } else{
+      return t;
+    }
+  }
 
-uint64_t GetTime(const RecordBatch* batch, Type::type time_type, int col, uint64_t row) {
+int64_t GetTime(const RecordBatch* batch, Type::type time_type, int col, uint64_t row) {
 #define LATEST_VAL_CASE(id, val)                     \
   case Type::id: {                                   \
     using T = typename TypeIdTraits<Type::id>::Type; \

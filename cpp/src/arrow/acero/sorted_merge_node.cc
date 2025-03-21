@@ -74,7 +74,7 @@ using SingleRecordBatchSliceBuilder = arrow::acero::UnmaterializedSliceBuilder<1
 using SingleRecordBatchCompositeTable = arrow::acero::UnmaterializedCompositeTable<1>;
 
 using row_index_t = uint64_t;
-using time_unit_t = uint64_t;
+using time_unit_t = int64_t;
 using col_index_t = int;
 
 constexpr bool kNewTask = true;

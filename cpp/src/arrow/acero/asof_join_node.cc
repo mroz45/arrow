@@ -88,7 +88,7 @@ inline D std_index(const T& container, const V& val) {
 }
 
 typedef uint64_t ByType;
-typedef uint64_t OnType;
+typedef int64_t OnType;
 typedef uint64_t HashType;
 
 /// A tolerance type with overflow-avoiding operations
@@ -97,7 +97,7 @@ struct TolType {
   constexpr static OnType kMaxValue = std::numeric_limits<OnType>::max();
 
   explicit TolType(int64_t tol)
-      : value(static_cast<uint64_t>(tol > 0 ? tol : -tol)), positive(tol > 0) {}
+      : value(tol > 0 ? tol : -tol), positive(tol > 0) {}
 
   OnType value;
   bool positive;
