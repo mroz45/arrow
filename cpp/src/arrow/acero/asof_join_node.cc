@@ -1532,7 +1532,6 @@ class AsofJoinNode : public ExecNode {
       return;
     }
     backpressure_future_ = Future<>::Make();
-
   }
   void ResumeProducing(ExecNode* output, int32_t counter) override {
     Future<> to_finish;
@@ -1566,8 +1565,6 @@ class AsofJoinNode : public ExecNode {
     // only then stop
     return ExecNode::StopProducing();
   }
-  // void ResumeProducing(ExecNode* output, int32_t counter) override {}
-  // void ResumeProducing(ExecNode* output, int32_t counter) override {}
 
   Status StopProducingImpl() override {
 #ifdef ARROW_ENABLE_THREADING

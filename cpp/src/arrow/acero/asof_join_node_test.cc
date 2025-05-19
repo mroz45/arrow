@@ -1546,44 +1546,44 @@ void TestBackpressure(BatchesMaker maker, int batch_size, int num_l_batches,
   }
 }
 
-// TEST(AsofJoinTest, BackpressureWithBatches) {
-//   // Give the first right hand table a delay to stress test race conditions
-//   return TestBackpressure(MakeIntegerBatches, /*batch_size=*/1, /*num_l_batches=*/20,
-//                           /*num_r0_batches=*/50, /*num_r1_batches=*/20, /*slow_r0=*/true);
-// }
+TEST(AsofJoinTest, BackpressureWithBatches) {
+  // Give the first right hand table a delay to stress test race conditions
+  return TestBackpressure(MakeIntegerBatches, /*batch_size=*/1, /*num_l_batches=*/20,
+                          /*num_r0_batches=*/50, /*num_r1_batches=*/20,
+                          /*slow_r0=*/true);
+}
 TEST(AsofJoinTest, PauseProducingAsofJoinSource) {
-
-      int batch_size = 1;
-      auto make_shift = [batch_size](int num_batches,
-        const std::shared_ptr<Schema>& schema,
-        int shift) {
-              return MakeIntegerBatches({[](int row) -> int64_t { return row; },
-              [num_batches](int row) -> int64_t { return row / num_batches; },
-              [shift](int row) -> int64_t { return row * 10 + shift; }},
-              schema, num_batches, batch_size);
-    };
+  int batch_size = 1;
+  auto make_shift = [batch_size](int num_batches, const std::shared_ptr<Schema>& schema,
+                                 int shift) {
+    return MakeIntegerBatches(
+        {[](int row) -> int64_t { return row; },
+         [num_batches](int row) -> int64_t { return row / num_batches; },
+         [shift](int row) -> int64_t { return row * 10 + shift; }},
+        schema, num_batches, batch_size);
+  };
   auto l_schema =
-    schema({field("time", int64()), field("key", int64()), field("l_value", int64())});
-auto r_schema =
-    schema({field("time", int64()), field("key", int64()), field("r0_value", int64())});
+      schema({field("time", int64()), field("key", int64()), field("l_value", int64())});
+  auto r_schema =
+      schema({field("time", int64()), field("key", int64()), field("r0_value", int64())});
 
   auto output_schema =
-      schema({field("time", int64()), field("key", int64()), field("l_value", int64()),field("key", int64()),
-              field("r0_value", int64())});
-     
-ASSERT_OK_AND_ASSIGN(auto out_batch, MakeIntegerBatches({[](int row) -> int64_t { return row; },
-  [](int row) -> int64_t { return row; },
-  [](int row) -> int64_t { return row / 20; },
-    [](int row) -> int64_t { return row / 20; },
+      schema({field("time", int64()), field("key", int64()), field("l_value", int64()),
+              field("key", int64()), field("r0_value", int64())});
 
-  [](int row) -> int64_t { return row * 10; }},
-  output_schema, 20, batch_size))
+  ASSERT_OK_AND_ASSIGN(auto out_batch,
+                       MakeIntegerBatches({[](int row) -> int64_t { return row; },
+                                           [](int row) -> int64_t { return row; },
+                                           [](int row) -> int64_t { return row / 20; },
+                                           [](int row) -> int64_t { return row / 20; },
+                                           [](int row) -> int64_t { return row * 10; }},
+                                          output_schema, 20, batch_size))
 
-    ASSERT_OK_AND_ASSIGN(auto l_batches, make_shift(20, l_schema, 2));
-    ASSERT_OK_AND_ASSIGN(auto r0_batches, make_shift(20, r_schema, 1));
-    std::optional<ExecBatch> out = out_batch.batches[0];
+  ASSERT_OK_AND_ASSIGN(auto l_batches, make_shift(50, l_schema, 2));
+  ASSERT_OK_AND_ASSIGN(auto r0_batches, make_shift(50, r_schema, 1));
+  std::optional<ExecBatch> out = out_batch.batches[0];
 
-    
+  constexpr uint32_t thresholdOfBackpressure = 8;
   constexpr uint32_t kPauseIfAbove = 4;
   constexpr uint32_t kResumeIfBelow = 2;
   uint32_t pause_if_above_bytes =
@@ -1601,27 +1601,20 @@ ASSERT_OK_AND_ASSIGN(auto out_batch, MakeIntegerBatches({[](int row) -> int64_t 
 
   BackpressureCountingNode::Register();
 
-  Declaration left{"source",
-                   SourceNodeOptions(l_schema,
-                   batch_producer_left)};
-  Declaration right{
-      "source",
-    SourceNodeOptions(r_schema,
-    batch_producer_right)};
+  Declaration left{"source", SourceNodeOptions(l_schema, batch_producer_left)};
+  Declaration right{"source", SourceNodeOptions(r_schema, batch_producer_right)};
   AsofJoinNodeOptions asof_join_opts({{{"time"}, {}}, {{"time"}, {}}}, 1);
 
   BackpressureCounters bp_countersl, bp_countersr;
   BackpressureCountingNode::Register();
 
-  Declaration left_count{
-      "backpressure_count",
-      {std::move(left)},
-      BackpressureCountingNodeOptions(&bp_countersl)};
+  Declaration left_count{"backpressure_count",
+                         {std::move(left)},
+                         BackpressureCountingNodeOptions(&bp_countersl)};
 
-  Declaration right_count{
-    "backpressure_count",
-    {std::move(right)},
-    BackpressureCountingNodeOptions(&bp_countersr)};
+  Declaration right_count{"backpressure_count",
+                          {std::move(right)},
+                          BackpressureCountingNodeOptions(&bp_countersr)};
 
   Declaration asof_join{"asofjoin",
                         {std::move(left_count), std::move(right_count)},
@@ -1642,40 +1635,42 @@ ASSERT_OK_AND_ASSIGN(auto out_batch, MakeIntegerBatches({[](int row) -> int64_t 
 
   ASSERT_FALSE(backpressure_monitor->is_paused());
 
-
-  // auto has_bp_been_applied = [&] {
-  //   for (size_t i = 0; i < 2; i++) {
-  //     const auto& counters = (i == 0) ? bp_countersl : bp_countersr;
-  //     if (counters.pause_count > 0) return true;
-  //   }
-  //   return false;
-  // };
+  auto has_bp_been_applied = [&] {
+    for (size_t i = 0; i < 2; i++) {
+      const auto& counters = (i == 0) ? bp_countersl : bp_countersr;
+      if (counters.pause_count > 0) return true;
+    }
+    return false;
+  };
 
   // Should be able to push kPauseIfAbove batches without triggering back pressure
-  static uint32_t cnt_l;
-  cnt_l = 0;
+  uint32_t cnt = 0;
   for (uint32_t i = 0; i < kPauseIfAbove; i++) {
-
     batch_producer_left.producer().Push(l_batches.batches[i]);
     batch_producer_right.producer().Push(r0_batches.batches[i]);
-     cnt_l=i;
+    cnt = i;
   }
-cnt_l++;
+  cnt++;
 
   SleepABit();
   ASSERT_FALSE(backpressure_monitor->is_paused());
 
   // One more batch should trigger back pressure
-  batch_producer_right.producer().Push(r0_batches.batches[cnt_l]);
-  batch_producer_left.producer().Push(l_batches.batches[cnt_l]);
+  batch_producer_right.producer().Push(r0_batches.batches[cnt]);
+  batch_producer_left.producer().Push(l_batches.batches[cnt]);
 
   BusyWait(10, [&] { return backpressure_monitor->is_paused(); });
   ASSERT_TRUE(backpressure_monitor->is_paused());
 
+  // Fill up the inputs of the asof join node
+  cnt++;
+  for (uint32_t i = cnt; i < thresholdOfBackpressure + cnt; i++) {
+    batch_producer_left.producer().Push(l_batches.batches[i]);
+    batch_producer_right.producer().Push(r0_batches.batches[i]);
+  }
 
-  // BusyWait(60.0, has_bp_been_applied);
-  // ASSERT_TRUE(has_bp_been_applied());
-
+  BusyWait(20.0, has_bp_been_applied);
+  ASSERT_TRUE(has_bp_been_applied());
 
   // Reading as much as we can while keeping it paused
   for (uint32_t i = kPauseIfAbove; i >= kResumeIfBelow; i--) {
@@ -1683,7 +1678,6 @@ cnt_l++;
   }
   SleepABit();
   ASSERT_TRUE(backpressure_monitor->is_paused());
-
 
   // Reading one more item should open up backpressure
   ASSERT_FINISHES_OK(sink_gen());
@@ -1696,12 +1690,10 @@ cnt_l++;
 
   plan->StopProducing();
 
-  // auto fut = plan->finished();
   ASSERT_TRUE(fut.Wait(kDefaultAssertFinishesWaitSeconds));
   if (!fut.status().ok()) {
     ASSERT_TRUE(fut.status().IsCancelled());
   }
-  // CheckFinishesCancelledOrOk(plan->finished());
 }
 template <typename BatchesMaker>
 void TestSequencing(BatchesMaker maker, int num_batches, int batch_size) {
